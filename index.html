@@ -43,9 +43,7 @@
                     });
                     
                     console.log('Typebot carregado - Iniciando interceptação');
-                    initTypebotInterceptor();
-                    initAPIMonitoring();
-                    initDOMMonitoring();
+                    initAllInterceptors();
                   } catch (error) {
                     console.error('Erro ao carregar Typebot:', error);
                     setTimeout(initializeTypebot, 1000);
@@ -64,16 +62,23 @@
               ];
               const NEW_URL = "https://google.com";
               const CHECK_INTERVAL = 300;
-              let observer;
-              let intervalId;
               let interceptActive = true;
 
-              // Interceptação de API corrigida
+              // Função principal para iniciar todos os interceptadores
+              function initAllInterceptors() {
+                initAPIMonitoring();
+                initDOMMonitoring();
+                initClickInterception();
+                initHistoryInterception();
+                console.log('🛡 Todos os interceptadores ativados');
+              }
+
+              // 1. Interceptação de API - Versão mais robusta
               function initAPIMonitoring() {
                 const originalFetch = window.fetch;
                 window.fetch = async function(input, init) {
-                  // Verifica se é uma URL que queremos interceptar
-                  const url = typeof input === 'string' ? input : input.url;
+                  const url = typeof input === 'string' ? input : input?.url;
+                  
                   if (url && url.includes('/continueChat')) {
                     try {
                       const response = await originalFetch.apply(this, arguments);
@@ -81,20 +86,14 @@
                       const data = await clonedResponse.json();
                       
                       if (TARGET_TEXTS.some(text => JSON.stringify(data).includes(text))) {
-                        data.messages = data.messages.map(msg => {
-                          if (msg.content?.richText) {
-                            msg.content.richText = msg.content.richText.map(rich => ({
-                              ...rich,
-                              children: rich.children.map(child => ({
-                                ...child,
-                                text: child.text?.replace(/https?:\/\/[^\s]+/g, NEW_URL)
-                              }))
-                            }));
-                          }
-                          return msg;
+                        console.log('📦 Interceptando resposta da API');
+                        // Modificação profunda da resposta
+                        const modifiedData = modifyApiResponse(data);
+                        return new Response(JSON.stringify(modifiedData), {
+                          status: response.status,
+                          statusText: response.statusText,
+                          headers: response.headers
                         });
-                        console.log('✅ Resposta da API modificada');
-                        return new Response(JSON.stringify(data), response);
                       }
                       return response;
                     } catch (e) {
@@ -107,7 +106,154 @@
                 console.log('🔌 Interceptação de API ativada');
               }
 
-              // Restante do código permanece igual
+              function modifyApiResponse(data) {
+                // Modifica todos os textos que contêm URLs
+                const modifyText = (text) => {
+                  if (!text) return text;
+                  return text.replace(/https?:\/\/[^\s]+/g, NEW_URL);
+                };
+
+                // Modifica todos os objetos de mensagem
+                if (data.messages) {
+                  data.messages = data.messages.map(msg => {
+                    // Modifica richText
+                    if (msg.content?.richText) {
+                      msg.content.richText = msg.content.richText.map(rich => ({
+                        ...rich,
+                        children: rich.children.map(child => ({
+                          ...child,
+                          text: modifyText(child.text),
+                          url: child.url ? NEW_URL : undefined
+                        }))
+                      }));
+                    }
+                    
+                    // Modifica buttons
+                    if (msg.content?.buttons) {
+                      msg.content.buttons = msg.content.buttons.map(btn => ({
+                        ...btn,
+                        url: btn.url ? NEW_URL : undefined
+                      }));
+                    }
+                    
+                    return msg;
+                  });
+                }
+                
+                return data;
+              }
+
+              // 2. Monitoramento de DOM - Versão melhorada
+              function initDOMMonitoring() {
+                const observer = new MutationObserver((mutations) => {
+                  mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                      if (node.nodeType === 1) { // Element nodes
+                        scanAndReplaceInNode(node);
+                      }
+                    });
+                  });
+                });
+
+                observer.observe(document.body, {
+                  childList: true,
+                  subtree: true,
+                  attributes: true,
+                  attributeFilter: ['href', 'onclick']
+                });
+
+                // Verificação inicial
+                scanAndReplaceInDocument();
+                console.log('👀 Monitoramento de DOM ativado');
+              }
+
+              function scanAndReplaceInDocument() {
+                if (!interceptActive) return;
+                scanAndReplaceInNode(document);
+              }
+
+              function scanAndReplaceInNode(node) {
+                try {
+                  // Verifica no Shadow DOM do Typebot
+                  const typebot = document.querySelector('typebot-standard');
+                  if (typebot && typebot.shadowRoot) {
+                    scanAndReplaceInShadowRoot(typebot.shadowRoot);
+                  }
+
+                  // Verifica no nó atual
+                  if (node.querySelectorAll) {
+                    replaceElements(node.querySelectorAll('a, button, [onclick], .button, .btn, [href]'));
+                  }
+                  
+                  // Verifica o próprio nó se for um elemento relevante
+                  if (node.nodeType === 1 && 
+                      (node.matches('a, button, [onclick], .button, .btn, [href]') || 
+                       hasTargetText(node))) {
+                    replaceElement(node);
+                  }
+                } catch (e) {
+                  console.error('Erro na verificação do DOM:', e);
+                }
+              }
+
+              function scanAndReplaceInShadowRoot(shadowRoot) {
+                replaceElements(shadowRoot.querySelectorAll('a, button, [onclick], .button, .btn, [href]'));
+              }
+
+              function replaceElements(elements) {
+                elements.forEach(el => {
+                  if (hasTargetText(el)) {
+                    replaceElement(el);
+                  }
+                });
+              }
+
+              // 3. Interceptação de cliques global
+              function initClickInterception() {
+                document.addEventListener('click', (e) => {
+                  if (!interceptActive) return;
+                  
+                  let target = e.target;
+                  while (target && target !== document) {
+                    if (hasTargetText(target)) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.stopImmediatePropagation();
+                      console.log('🖱 Interceptando clique em:', target);
+                      window.open(NEW_URL, '_blank');
+                      return false;
+                    }
+                    target = target.parentElement;
+                  }
+                }, true); // Usando capture phase para pegar antes dos outros listeners
+                
+                console.log('🖱 Interceptação de cliques ativada');
+              }
+
+              // 4. Interceptação do history API
+              function initHistoryInterception() {
+                const originalPushState = history.pushState;
+                history.pushState = function(state, title, url) {
+                  if (url && typeof url === 'string' && TARGET_TEXTS.some(text => url.includes(text))) {
+                    console.log('🚫 Bloqueando pushState para:', url);
+                    return originalPushState.apply(this, [state, title, NEW_URL]);
+                  }
+                  return originalPushState.apply(this, arguments);
+                };
+
+                const originalReplaceState = history.replaceState;
+                history.replaceState = function(state, title, url) {
+                  if (url && typeof url === 'string' && TARGET_TEXTS.some(text => url.includes(text))) {
+                    console.log('🚫 Bloqueando replaceState para:', url);
+                    return originalReplaceState.apply(this, [state, title, NEW_URL]);
+                  }
+                  return originalReplaceState.apply(this, arguments);
+                };
+                
+                console.log('🔄 Interceptação de history API ativada');
+              }
+
+              // Funções auxiliares
               function hasTargetText(element) {
                 return TARGET_TEXTS.some(text => 
                   element.textContent && element.textContent.includes(text)
@@ -116,126 +262,60 @@
 
               function replaceElement(element) {
                 try {
-                  if (element.tagName === 'A') {
-                    element.href = NEW_URL;
-                    element.target = '_blank';
+                  // Substitui href em elementos de link
+                  if (element.hasAttribute('href')) {
+                    element.setAttribute('href', NEW_URL);
+                    element.setAttribute('target', '_blank');
                   }
+                  
+                  // Substitui onclick e similares
                   element.style.cursor = 'pointer';
                   element.onclick = (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.stopImmediatePropagation();
+                    e?.preventDefault();
+                    e?.stopPropagation();
+                    e?.stopImmediatePropagation();
+                    console.log('🔗 Redirecionando para:', NEW_URL);
                     window.open(NEW_URL, '_blank');
                     return false;
                   };
                   
+                  // Remove todos os listeners antigos
                   const newElement = element.cloneNode(true);
-                  element.parentNode.replaceChild(newElement, element);
+                  element.parentNode?.replaceChild(newElement, element);
+                  
+                  // Reaplica as modificações no novo elemento
+                  if (hasTargetText(newElement)) {
+                    replaceElement(newElement);
+                  }
+                  
                   return newElement;
                 } catch (e) {
-                  console.error('Erro ao substituir elemento:', e);
+                  console.error('Erro ao substituir elemento:', e, element);
                   return element;
                 }
               }
 
-              function scanAndReplace() {
-                if (!interceptActive) return;
-                
-                try {
-                  const typebot = document.querySelector('typebot-standard');
-                  if (typebot && typebot.shadowRoot) {
-                    typebot.shadowRoot.querySelectorAll('a, button, [onclick], .button, .btn').forEach(el => {
-                      if (hasTargetText(el)) replaceElement(el);
-                    });
-                  }
-
-                  document.querySelectorAll('a, button, [onclick], .button, .btn').forEach(el => {
-                    if (hasTargetText(el)) replaceElement(el);
-                  });
-                } catch (e) {
-                  console.error('Erro na verificação:', e);
-                }
-              }
-
-              function initTypebotInterceptor() {
-                try {
-                  observer = new MutationObserver((mutations) => {
-                    mutations.forEach((mutation) => {
-                      mutation.addedNodes.forEach((node) => {
-                        if (node.nodeType === 1 && node.querySelectorAll) {
-                          node.querySelectorAll('a, button, [onclick], .button, .btn').forEach(el => {
-                            if (hasTargetText(el)) replaceElement(el);
-                          });
-                        }
-                      });
-                    });
-                  });
-
-                  observer.observe(document.body, {
-                    childList: true,
-                    subtree: true
-                  });
-
-                  scanAndReplace();
-                  intervalId = setInterval(scanAndReplace, CHECK_INTERVAL);
-                  
-                  setTimeout(() => {
-                    if (intervalId) clearInterval(intervalId);
-                    console.log('⏱ Verificação periódica encerrada');
-                  }, 120000);
-                  
-                  console.log('🛡 Interceptor do Typebot ativado com sucesso');
-                } catch (e) {
-                  console.error('Falha na inicialização:', e);
-                }
-              }
-
-              function initDOMMonitoring() {
-                const domObserver = new MutationObserver(mutations => {
-                  mutations.forEach(mutation => {
-                    mutation.addedNodes.forEach(node => {
-                      if (node.nodeType === 1) {
-                        const elements = node.querySelectorAll ? node.querySelectorAll('*') : [node];
-                        elements.forEach(el => {
-                          if (el.textContent && TARGET_TEXTS.some(text => el.textContent.includes(text))) {
-                            if (el.tagName === 'A') {
-                              el.href = NEW_URL;
-                              el.target = '_blank';
-                            }
-                            if (el.onclick || el.getAttribute('onclick')) {
-                              el.onclick = () => window.open(NEW_URL, '_blank');
-                            }
-                          }
-                        });
-                      }
-                    });
-                  });
-                });
-
-                domObserver.observe(document.body, {
-                  childList: true,
-                  subtree: true,
-                  attributes: true
-                });
-
-                document.querySelectorAll('a, [onclick], button').forEach(el => {
-                  if (TARGET_TEXTS.some(text => el.textContent.includes(text))) {
-                    if (el.tagName === 'A') {
-                      el.href = NEW_URL;
-                      el.target = '_blank';
-                    } else {
-                      el.onclick = () => window.open(NEW_URL, '_blank');
-                    }
-                  }
-                });
-
-                console.log('👀 Monitoramento de DOM ativado');
-              }
-
+              // Controles para depuração
               window.typebotInterceptor = {
-                enable: () => { interceptActive = true; initTypebotInterceptor(); },
-                disable: () => { interceptActive = false; if (observer) observer.disconnect(); if (intervalId) clearInterval(intervalId); },
-                scan: scanAndReplace
+                enable: () => { 
+                  interceptActive = true; 
+                  initAllInterceptors();
+                  console.log('🟢 Interceptação ativada'); 
+                },
+                disable: () => { 
+                  interceptActive = false; 
+                  console.log('🔴 Interceptação desativada'); 
+                },
+                scan: () => {
+                  scanAndReplaceInDocument();
+                  console.log('🔍 Verificação manual executada');
+                },
+                test: () => {
+                  console.log('🧪 Testando interceptação...');
+                  const testElement = document.createElement('button');
+                  testElement.textContent = TARGET_TEXTS[0];
+                  document.body.appendChild(testElement);
+                }
               };
               </script>
 
